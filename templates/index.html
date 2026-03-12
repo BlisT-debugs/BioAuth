@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>BioAuth Multi-Modal Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #050816;
+            color: #e5e7eb;
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            background: radial-gradient(circle at top, #1f2937, #020617);
+            padding: 2rem 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 24px 80px rgba(15, 23, 42, 0.9);
+            width: 100%;
+            max-width: 460px;
+        }
+        h1 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 1.6rem;
+        }
+        p.subtitle {
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-size: 0.85rem;
+            color: #d1d5db;
+        }
+        input {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            border-radius: 0.6rem;
+            border: 1px solid #374151;
+            background: #020617;
+            color: #f9fafb;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #22c55e;
+            box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4);
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 0.65rem 1.5rem;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #022c22;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+            width: 100%;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+            min-height: 1.4rem;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.15rem 0.55rem;
+            border-radius: 999px;
+            background: rgba(55, 65, 81, 0.7);
+            font-size: 0.7rem;
+            margin-left: 0.4rem;
+        }
+        video {
+            margin-top: 1rem;
+            width: 100%;
+            border-radius: 0.75rem;
+            border: 1px solid #374151;
+            display: none;
+        }
+        .tagline {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+    </style>
+    <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script defer src="{{ url_for('static', filename='js/keystrokes.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/face_liveness.js') }}"></script>
+</head>
+<body>
+    <div class="card">
+        <h1>BioAuth Login</h1>
+        <p class="subtitle">
+            Perimeter-first adaptive zero-trust
+            <span class="chip" id="perimeter-mode">Detecting network…</span>
+        </p>
+
+        <form id="login-form">
+            <label for="username">Username</label>
+            <input id="username" name="username" autocomplete="username" required />
+
+            <label for="password" style="margin-top:0.75rem;">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+            <p class="tagline" id="hint-text">
+                Start typing your password normally. We’ll analyze your keystroke rhythm.
+            </p>
+
+            <video id="camera" autoplay muted playsinline></video>
+
+            <button id="login-btn" type="submit">Login</button>
+        </form>
+
+        <div class="status" id="status"></div>
+    </div>
+</body>
+</html>
+

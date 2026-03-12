@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>BioAuth Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #020617;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 1.5rem;
+        }
+        h1 {
+            margin-top: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: #020617;
+        }
+        th, td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #111827;
+            font-size: 0.85rem;
+        }
+        th {
+            text-align: left;
+            color: #9ca3af;
+            background: #030712;
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 0.25rem 0.7rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            margin-right: 0.25rem;
+        }
+        .btn-approve {
+            background: #22c55e;
+            color: #022c22;
+        }
+        .btn-deny {
+            background: #ef4444;
+            color: #fee2e2;
+        }
+        .pill {
+            padding: 0.1rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            background: #111827;
+            color: #e5e7eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Managerial Oversight</h1>
+    <p>Pending high-clearance access requests. Approvals are streamed back to users via polling.</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>User</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in pending %}
+            <tr data-id="{{ r['id'] }}">
+                <td>{{ r['id'] }}</td>
+                <td>{{ r['username'] }}</td>
+                <td><span class="pill">{{ r['status'] }}</span></td>
+                <td>
+                    <button class="btn-approve" onclick="setStatus({{ r['id'] }}, 'approve')">Approve</button>
+                    <button class="btn-deny" onclick="setStatus({{ r['id'] }}, 'deny')">Deny</button>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4">No pending requests.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        async function setStatus(id, action) {
+            const endpoint = action === 'approve'
+                ? `/api/admin/approve/${id}`
+                : `/api/admin/deny/${id}`;
+            await fetch(endpoint, { method: 'POST' });
+            location.reload();
+        }
+    </script>
+</body>
+</html>
+

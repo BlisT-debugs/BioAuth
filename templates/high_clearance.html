@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>High-Clearance Resource</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #020617;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 1.5rem;
+        }
+        .card {
+            max-width: 640px;
+            margin: 0 auto;
+            background: #030712;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 20px 60px rgba(15, 23, 42, 0.8);
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 0.5rem 1.2rem;
+            background: #22c55e;
+            color: #022c22;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .status {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+        pre {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            background: #020617;
+            border-radius: 0.75rem;
+            font-size: 0.8rem;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>High-Clearance Dataset</h1>
+        <p>This resource is only released after manual approval from a manager.</p>
+        <button id="request-btn">Request Access</button>
+        <div class="status" id="status"></div>
+        <pre id="secret" style="display:none;">[Sensitive data payload]</pre>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const secretEl = document.getElementById('secret');
+        const btn = document.getElementById('request-btn');
+
+        async function pollStatus(id) {
+            while (true) {
+                const res = await fetch(`/api/high-clearance/status/${id}`);
+                if (!res.ok) {
+                    statusEl.textContent = 'Request not found or expired.';
+                    btn.disabled = false;
+                    return;
+                }
+                const data = await res.json();
+                if (data.status === 'approved') {
+                    statusEl.textContent = 'Approved by manager. Resource unlocked.';
+                    secretEl.style.display = 'block';
+                    return;
+                }
+                if (data.status === 'denied') {
+                    statusEl.textContent = 'Request denied by manager.';
+                    btn.disabled = false;
+                    return;
+                }
+                statusEl.textContent = 'Waiting for managerial approval…';
+                await new Promise(r => setTimeout(r, 2000));
+            }
+        }
+
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            statusEl.textContent = 'Submitting request…';
+            const res = await fetch('/api/high-clearance/request', { method: 'POST' });
+            if (!res.ok) {
+                statusEl.textContent = 'You must be logged in.';
+                btn.disabled = false;
+                return;
+            }
+            const data = await res.json();
+            statusEl.textContent = 'Request submitted. Waiting for approval…';
+            pollStatus(data.request_id);
+        });
+    </script>
+</body>
+</html>
+
