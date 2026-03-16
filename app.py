@@ -267,6 +267,7 @@ def api_perimeter():
         ip = request.headers.getlist("X-Forwarded-For")[0]
     else:
         ip = request.remote_addr or "0.0.0.0"
+        print(f"DEBUG: Perimeter check for IP: {ip}")
     internal = ip_is_internal(ip)
     classification = classify_connection(latencies)
 
