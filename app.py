@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 DB_PATH = Path(os.environ.get("BIOAUTH_DB_PATH", "auth.db"))
 INTERNAL_NETWORKS = [
-    ipaddress.ip_network("10.106.0.0/16"),  # demo: treat 10.106.x.x as internal
+    ipaddress.ip_network("10.3.0.0/16"),  # demo: treat 10.106.x.x as internal
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
 Z_THRESHOLD = 1.8
@@ -154,7 +154,7 @@ def gaussian_z_score(x: np.ndarray, profile: GaussianProfile) -> float:
     return float(z.mean())
 
 
-def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.25) -> GaussianProfile:
+def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.2) -> GaussianProfile:
     mu_new = profile.mu * (1.0 - alpha) + x * alpha
     # keep sigma as-is for simplicity; could also adapt
     return GaussianProfile(mu=mu_new, sigma=profile.sigma)
