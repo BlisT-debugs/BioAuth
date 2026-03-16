@@ -315,7 +315,10 @@ def api_keystrokes():
         z = gaussian_z_score(x, profile)
         match = z < Z_THRESHOLD
 
-    is_remote = not ip_is_internal(request.remote_addr or "0.0.0.0")
+    forwarded = request.headers.getlist("X-Forwarded-For")
+    current_ip = forwarded[0] if forwarded else (request.remote_addr or "0.0.0.0")
+    is_remote = not ip_is_internal(current_ip)
+    
     log_event(
         user_id=user["id"],
         username=username,
@@ -369,7 +372,9 @@ def api_face_verify():
         distance = min(distances)
         match = distance < FACE_DISTANCE_THRESHOLD
 
-    is_remote = not ip_is_internal(request.remote_addr or "0.0.0.0")
+    forwarded = request.headers.getlist("X-Forwarded-For")
+    current_ip = forwarded[0] if forwarded else (request.remote_addr or "0.0.0.0")
+    is_remote = not ip_is_internal(current_ip)
     log_event(
         user_id=user["id"],
         username=username,
