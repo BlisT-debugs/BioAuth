@@ -61,12 +61,22 @@ window.addEventListener('load', () => {
     initPerimeter();
 });
 
+passwordInput.addEventListener('input', (e) => {
+    if (passwordInput.value === '') {
+        dwellTimes = [];
+        flightTimes = [];
+        keyDownTimes = {};
+        lastKeyUpTime = null;
+    }
+});
+
 passwordInput.addEventListener('keydown', (e) => {
-    if (e.repeat) return;
+    if (e.repeat || e.key === 'Enter') return;
     keyDownTimes[e.code] = performance.now();
 });
 
 passwordInput.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') return;
     const now = performance.now();
     const downTime = keyDownTimes[e.code];
     if (downTime) {

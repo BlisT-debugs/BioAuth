@@ -16,7 +16,7 @@ INTERNAL_NETWORKS = [
     ipaddress.ip_network("103.4.0.0/16"),  # demo: treat SRM Wifi as internal
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
-Z_THRESHOLD = 1.6
+Z_THRESHOLD = 1.8
 FACE_DISTANCE_THRESHOLD = 0.6
 
 
@@ -154,7 +154,7 @@ def gaussian_z_score(x: np.ndarray, profile: GaussianProfile) -> float:
     return float(z.mean())
 
 
-def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.18) -> GaussianProfile:
+def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.19) -> GaussianProfile:
     mu_new = profile.mu * (1.0 - alpha) + x * alpha
     # keep sigma as-is for simplicity; could also adapt
     return GaussianProfile(mu=mu_new, sigma=profile.sigma)
@@ -326,6 +326,9 @@ def api_keystrokes():
         detail={"z_score": z, "timing_len": len(timings)},
         is_remote=is_remote,
     )
+
+    if is_remote:
+        return jsonify({"result": "step_up", "z_score": z})
 
     if match:
         # Adaptive learning: update mean on successful login
@@ -536,7 +539,7 @@ def api_register_enroll():
         mu = arr.mean(axis=0)
         sigma = arr.std(axis=0)
         # Avoid zero-variance dimensions – add small floor
-        sigma = np.where(sigma < 1.0, 1.0, sigma)
+        sigma = np.where(sigma < 25.0, 25.0, sigma)
     else:
         x = np.array(timings, dtype=float)
         mu = x
