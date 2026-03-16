@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 DB_PATH = Path(os.environ.get("BIOAUTH_DB_PATH", "auth.db"))
 INTERNAL_NETWORKS = [
-    ipaddress.ip_network("59.152.80.69/32"),  # demo: treat it as internal
+    ipaddress.ip_network("103.4.0.0/16"),  # demo: treat SRM Wifi as internal
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
 Z_THRESHOLD = 1.6
