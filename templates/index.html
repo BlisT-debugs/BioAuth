@@ -141,6 +141,13 @@
 
         <div class="status" id="status"></div>
     </div>
+    <script>
+        // Clear form fields when navigating back to this page via the browser back button
+        window.addEventListener('pageshow', function() {
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        });
+    </script>
 </body>
 </html>
 

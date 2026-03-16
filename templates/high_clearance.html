@@ -48,7 +48,12 @@
     <div class="card">
         <h1>High-Clearance Dataset</h1>
         <p>This resource is only released after manual approval from a manager.</p>
-        <button id="request-btn">Request Access</button>
+        
+        <div style="display: flex; gap: 10px;">
+            <button id="request-btn">Request Access</button>
+            <button id="logout-btn" onclick="window.location.href='/logout'" style="background: #ef4444; color: white;">Logout</button>
+        </div>
+        
         <div class="status" id="status"></div>
         <pre id="secret" style="display:none;">[Sensitive data payload]</pre>
     </div>

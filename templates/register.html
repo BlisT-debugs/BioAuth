@@ -123,6 +123,15 @@
         <div class="status" id="status"></div>
         <p class="tagline">Already enrolled? <a href="{{ url_for('index') }}">Back to login</a></p>
     </div>
+    <script>
+        // Clear form fields when navigating back to this page via the browser back button
+        window.addEventListener('pageshow', function() {
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        });
+    </script>
+</body>
+</html>
 </body>
 </html>
 

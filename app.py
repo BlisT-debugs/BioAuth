@@ -331,9 +331,12 @@ def api_keystrokes():
         return jsonify({"result": "step_up", "z_score": z})
 
     if match:
-        # Adaptive learning: update mean on successful login
-        new_profile = update_gaussian_profile(profile, x)
-        save_keystroke_profile(user["id"], new_profile)
+        # Adaptive learning: update mean on successful login ONLY if lengths match
+        if len(x) == len(profile.mu):
+            new_profile = update_gaussian_profile(profile, x)
+            save_keystroke_profile(user["id"], new_profile)
+        else:
+            print(f"DEBUG: Skipping adaptive update. Input length ({len(x)}) != profile length ({len(profile.mu)})")
         session["user_id"] = user["id"]
         session["username"] = username
         return jsonify({"result": "granted", "z_score": z})
@@ -395,6 +398,19 @@ def api_face_verify():
     cur.execute(
         "INSERT INTO face_templates (user_id, descriptor, created_at) VALUES (?, ?, ?)",
         (user["id"], json.dumps(desc_vec.tolist()), time.time()),
+    )
+    # Enforce a rolling window (keep only the 5 most recent templates)
+    cur.execute(
+        """
+        DELETE FROM face_templates 
+        WHERE user_id = ? AND id NOT IN (
+            SELECT id FROM face_templates 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 5
+        )
+        """,
+        (user["id"], user["id"])
     )
     conn.commit()
     conn.close()
@@ -570,6 +586,11 @@ def api_register_enroll():
     )
 
     return jsonify({"result": "registered"})
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":
