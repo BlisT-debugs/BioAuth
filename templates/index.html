@@ -70,6 +70,16 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        button.btn-secondary {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #d1d5db;
+            margin-top: 0.75rem;
+        }
+        button.btn-secondary:hover {
+            background: rgba(55, 65, 81, 0.5);
+            color: #fff;
+        }
         .status {
             margin-top: 1rem;
             font-size: 0.8rem;
@@ -124,6 +134,9 @@
             <video id="camera" autoplay muted playsinline></video>
 
             <button id="login-btn" type="submit">Login</button>
+            <button type="button" class="btn-secondary" onclick="window.location.href='/register'">
+                Register
+            </button>
         </form>
 
         <div class="status" id="status"></div>
