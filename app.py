@@ -16,7 +16,7 @@ INTERNAL_NETWORKS = [
     ipaddress.ip_network("59.152.80.69/32"),  # demo: treat it as internal
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
-Z_THRESHOLD = 1.8
+Z_THRESHOLD = 1.6
 FACE_DISTANCE_THRESHOLD = 0.6
 
 
@@ -154,7 +154,7 @@ def gaussian_z_score(x: np.ndarray, profile: GaussianProfile) -> float:
     return float(z.mean())
 
 
-def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.2) -> GaussianProfile:
+def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.18) -> GaussianProfile:
     mu_new = profile.mu * (1.0 - alpha) + x * alpha
     # keep sigma as-is for simplicity; could also adapt
     return GaussianProfile(mu=mu_new, sigma=profile.sigma)
