@@ -16,7 +16,7 @@ INTERNAL_NETWORKS = [
     ipaddress.ip_network("103.4.0.0/16"),  # demo: treat SRM Wifi as internal
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
-Z_THRESHOLD = 1.8
+Z_THRESHOLD = 1.6
 FACE_DISTANCE_THRESHOLD = 0.6
 
 
