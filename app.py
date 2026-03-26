@@ -105,6 +105,13 @@ def init_db():
 
     conn.commit()
     conn.close()
+    
+def get_client_ip() -> str:
+    """Extract client IP safely from Railway proxies."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "0.0.0.0"
 
 
 def ip_is_internal(ip: str) -> bool:
@@ -300,22 +307,28 @@ def api_keystrokes():
     data = request.get_json(force=True)
     username, password, timings = data.get("username"), data.get("password"), data.get("timings") or []
 
+    current_ip = get_client_ip()
+    is_remote = not ip_is_internal(current_ip)
+
     user = get_user_by_username(username)
-    if user is None: return jsonify({"error": "unknown user"}), 400
-    if not password or not check_password_hash(user["password_hash"], password): return jsonify({"error": "invalid_credentials"}), 401
+    
+    # 1. NEW: Explicitly log Unknown Users
+    if user is None: 
+        log_event(None, username, "login_failed", {"reason": "Unknown User", "ip": current_ip}, is_remote)
+        return jsonify({"error": "unknown user"}), 400
+        
+    # 2. NEW: Explicitly log Wrong Passwords
+    if not password or not check_password_hash(user["password_hash"], password): 
+        log_event(user["id"], username, "login_failed", {"reason": "Invalid Password", "ip": current_ip}, is_remote)
+        return jsonify({"error": "invalid_credentials"}), 401
 
     x = np.array(timings, dtype=float)
     profile = get_keystroke_profile(user["id"])
-
-    # 1. Get IP and network status
-    current_ip = get_client_ip()
-    is_remote = not ip_is_internal(current_ip)
     
     z = None
     match = False
     step_up_reason = None
 
-    # 2. Determine exactly WHY a step-up might be required
     if profile is None:
         step_up_reason = "Initial login (No baseline profile exists)"
     else:
@@ -323,114 +336,74 @@ def api_keystrokes():
             step_up_reason = f"Typo detected: Input length ({len(x)}) differs from Profile ({len(profile.mu)})"
         else:
             z = gaussian_z_score(x, profile)
-            match = z < Z_THRESHOLD
+            effective_threshold = 4.0 if not is_remote else Z_THRESHOLD
+            match = z < effective_threshold
             
-            # Even if the Z-score matches perfectly, an external IP forces a step-up
             if is_remote:
                 step_up_reason = f"Mandatory Step-Up: Remote IP ({current_ip}) detected"
             elif not match:
-                step_up_reason = f"Rhythm anomaly: Z-Score ({z:.2f}) exceeded threshold ({Z_THRESHOLD})"
+                step_up_reason = f"Rhythm anomaly: Z-Score ({z:.2f}) exceeded threshold ({effective_threshold})"
 
-    # 3. Add the explicit reason to our audit logs
-    log_detail = {
-        "z_score": round(z, 2) if z is not None else None, 
-        "timing_len": len(timings),
-        "ip": current_ip
-    }
-    
-    if step_up_reason:
+    log_detail = {"z_score": round(z, 2) if z is not None else None, "timing_len": len(timings), "ip": current_ip}
+    if step_up_reason: 
         log_detail["step_up_reason"] = step_up_reason
 
-    log_event(user["id"], username, "keystroke_check", log_detail, is_remote)
+    # 3. NEW: Distinct event types for the Dashboard
+    event_type = "keystroke_step_up" if step_up_reason else "keystroke_success"
+    log_event(user["id"], username, event_type, log_detail, is_remote)
 
-    # 4. Enforce the authentication decision
-    if is_remote:
+    if is_remote or not match or step_up_reason:
         return jsonify({"result": "step_up", "z_score": z, "reason": step_up_reason})
 
-    # Only grant immediate access if it's a match AND there's no step-up reason
-    if match and step_up_reason is None:
-        new_profile = update_gaussian_profile(profile, x)
-        save_keystroke_profile(user["id"], new_profile)
-        session["user_id"] = user["id"]
-        session["username"] = username
-        return jsonify({"result": "granted", "z_score": z})
+    new_profile = update_gaussian_profile(profile, x)
+    save_keystroke_profile(user["id"], new_profile)
+    session["user_id"] = user["id"]
+    session["username"] = username
+    return jsonify({"result": "granted", "z_score": z})
 
-    return jsonify({"result": "step_up", "z_score": z, "reason": step_up_reason})
 
 @app.post("/api/face-verify")
 def api_face_verify():
-    """
-    Step 3: Physiological engine (facial liveness + identity).
-    Expects:
-      - username
-      - descriptor: 128-dim vector
-      - liveness_passed: bool (blink sequence verified client-side)
-    """
     data = request.get_json(force=True)
-    username = data.get("username")
-    descriptor = data.get("descriptor")
-    liveness_passed = bool(data.get("liveness_passed"))
+    username, descriptor, liveness_passed = data.get("username"), data.get("descriptor"), bool(data.get("liveness_passed"))
 
-    if not liveness_passed:
+    current_ip = get_client_ip()
+    is_remote = not ip_is_internal(current_ip)
+
+    # 1. NEW: Explicitly log Liveness Failures (Failed the head turn)
+    if not liveness_passed: 
+        log_event(None, username, "face_failed", {"reason": "Liveness Check Failed", "ip": current_ip}, is_remote)
         return jsonify({"error": "liveness_failed"}), 400
 
     user = get_user_by_username(username)
-    if user is None:
+    if user is None: 
         return jsonify({"error": "unknown user"}), 400
 
     desc_vec = np.array(descriptor, dtype=float)
     templates = get_face_templates(user["id"])
 
     if not templates:
-        # First successful capture will become baseline after verification
-        distance = 0.0
-        match = True
+        distance = 0.0; match = True
     else:
         distances = [float(np.linalg.norm(desc_vec - t)) for t in templates]
-        distance = min(distances)
-        match = distance < FACE_DISTANCE_THRESHOLD
+        distance = min(distances); match = distance < FACE_DISTANCE_THRESHOLD
 
-    forwarded = request.headers.get("X-Forwarded-For")
-    current_ip = forwarded.split(",")[0].strip() if forwarded else (request.remote_addr or "0.0.0.0")
-    is_remote = not ip_is_internal(current_ip)
-    log_event(
-        user_id=user["id"],
-        username=username,
-        event_type="face_check",
-        detail={"distance": distance, "liveness_passed": liveness_passed},
-        is_remote=is_remote,
-    )
-
-    if not match:
+    # 2. NEW: Explicitly log Facial Mismatches (Wrong person)
+    if not match: 
+        log_event(user["id"], username, "face_failed", {"reason": "Identity Mismatch", "distance": round(distance, 3), "ip": current_ip}, is_remote)
         return jsonify({"result": "rejected", "distance": distance}), 403
 
-    # Multi-template approach: store new descriptor too to adapt over time
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO face_templates (user_id, descriptor, created_at) VALUES (?, ?, ?)",
-        (user["id"], json.dumps(desc_vec.tolist()), time.time()),
-    )
-    # Enforce a rolling window (keep only the 5 most recent templates)
-    cur.execute(
-        """
-        DELETE FROM face_templates 
-        WHERE user_id = ? AND id NOT IN (
-            SELECT id FROM face_templates 
-            WHERE user_id = ? 
-            ORDER BY created_at DESC 
-            LIMIT 5
-        )
-        """,
-        (user["id"], user["id"])
-    )
-    conn.commit()
-    conn.close()
+    # 3. NEW: Log a clear success event
+    log_event(user["id"], username, "face_success", {"distance": round(distance, 3), "ip": current_ip}, is_remote)
+
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("INSERT INTO face_templates (user_id, descriptor, created_at) VALUES (?, ?, ?)", (user["id"], json.dumps(desc_vec.tolist()), time.time()))
+    cur.execute("DELETE FROM face_templates WHERE user_id = ? AND id NOT IN (SELECT id FROM face_templates WHERE user_id = ? ORDER BY created_at DESC LIMIT 5)", (user["id"], user["id"]))
+    conn.commit(); conn.close()
 
     session["user_id"] = user["id"]
     session["username"] = username
     return jsonify({"result": "granted", "distance": distance})
-
 
 @app.post("/api/high-clearance/request")
 def api_high_clearance_request():
@@ -459,7 +432,7 @@ def api_high_clearance_request():
         username=username,
         event_type="high_clearance_requested",
         detail={"request_id": req_id},
-        is_remote=not ip_is_internal(request.remote_addr or "0.0.0.0"),
+        is_remote=not ip_is_internal(get_client_ip()),
     )
 
     return jsonify({"request_id": req_id})
@@ -594,7 +567,7 @@ def api_register_enroll():
         username=username,
         event_type="user_registered",
         detail={"keystroke_len": len(timings)},
-        is_remote=not ip_is_internal(request.remote_addr or "0.0.0.0"),
+        is_remote=not ip_is_internal(get_client_ip())
     )
 
     return jsonify({"result": "registered"})
