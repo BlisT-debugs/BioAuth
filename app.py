@@ -245,12 +245,20 @@ def high_clearance():
 def admin_dashboard():
     conn = get_db()
     cur = conn.cursor()
+    
+    # 1. Fetch pending high clearance requests
     cur.execute(
         "SELECT * FROM high_clearance_requests WHERE status = 'pending' ORDER BY created_at DESC"
     )
     pending = cur.fetchall()
+    
+    # 2. Fetch the latest 100 audit logs (Login attempts, step-ups, perimeter checks)
+    cur.execute(
+        "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100"
+    )
+    logs = cur.fetchall()
     conn.close()
-    return render_template("admin.html", pending=pending)
+    return render_template("admin.html", pending=pending, logs=logs)
 
 
 @app.post("/api/perimeter")
@@ -263,8 +271,8 @@ def api_perimeter():
     username = data.get("username")
     latencies = data.get("latencies_ms") or []
 
-    if request.headers.getlist("X-Forwarded-For"):
-        ip = request.headers.getlist("X-Forwarded-For")[0]
+    if request.headers.get("X-Forwarded-For"):
+        ip = request.headers.get("X-Forwarded-For").split(",")[0].strip()
     else:
         ip = request.remote_addr or "0.0.0.0"
         print(f"DEBUG: Perimeter check for IP: {ip}")
@@ -315,8 +323,8 @@ def api_keystrokes():
         z = gaussian_z_score(x, profile)
         match = z < Z_THRESHOLD
 
-    forwarded = request.headers.getlist("X-Forwarded-For")
-    current_ip = forwarded[0] if forwarded else (request.remote_addr or "0.0.0.0")
+    forwarded = request.headers.get("X-Forwarded-For")
+    current_ip = forwarded.split(",")[0].strip() if forwarded else (request.remote_addr or "0.0.0.0")
     is_remote = not ip_is_internal(current_ip)
     
     log_event(
@@ -378,8 +386,8 @@ def api_face_verify():
         distance = min(distances)
         match = distance < FACE_DISTANCE_THRESHOLD
 
-    forwarded = request.headers.getlist("X-Forwarded-For")
-    current_ip = forwarded[0] if forwarded else (request.remote_addr or "0.0.0.0")
+    forwarded = request.headers.get("X-Forwarded-For")
+    current_ip = forwarded.split(",")[0].strip() if forwarded else (request.remote_addr or "0.0.0.0")
     is_remote = not ip_is_internal(current_ip)
     log_event(
         user_id=user["id"],

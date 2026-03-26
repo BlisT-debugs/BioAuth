@@ -12,26 +12,54 @@
             margin: 0;
             padding: 1.5rem;
         }
-        h1 {
-            margin-top: 0;
+        h1 { margin-top: 0; }
+        
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #1f2937;
+            padding-bottom: 0.5rem;
         }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #9ca3af;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { color: #f3f4f6; background: #111827; }
+        .tab-btn.active { color: #22c55e; background: #064e3b; }
+        
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 1rem;
             background: #020617;
+            table-layout: fixed; /* helps with long JSON details */
         }
         th, td {
-            padding: 0.5rem 0.75rem;
+            padding: 0.75rem 0.75rem;
             border-bottom: 1px solid #111827;
             font-size: 0.85rem;
+            word-wrap: break-word;
         }
         th {
             text-align: left;
             color: #9ca3af;
             background: #030712;
+            font-weight: 600;
         }
-        button {
+        
+        button.action-btn {
             border: none;
             border-radius: 999px;
             padding: 0.25rem 0.7rem;
@@ -39,54 +67,128 @@
             cursor: pointer;
             margin-right: 0.25rem;
         }
-        .btn-approve {
-            background: #22c55e;
-            color: #022c22;
-        }
-        .btn-deny {
-            background: #ef4444;
-            color: #fee2e2;
-        }
+        .btn-approve { background: #22c55e; color: #022c22; }
+        .btn-deny { background: #ef4444; color: #fee2e2; }
+        
+        /* Status Badges */
         .pill {
-            padding: 0.1rem 0.5rem;
+            padding: 0.2rem 0.6rem;
             border-radius: 999px;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .pill.remote { background: #7f1d1d; color: #fca5a5; }
+        .pill.internal { background: #064e3b; color: #6ee7b7; }
+        .pill.event { background: #1e3a8a; color: #bfdbfe; }
+        
+        /* JSON Formatting Box */
+        pre {
+            margin: 0;
             background: #111827;
-            color: #e5e7eb;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            color: #a7f3d0;
         }
     </style>
 </head>
 <body>
-    <h1>Managerial Oversight</h1>
-    <p>Pending high-clearance access requests. Approvals are streamed back to users via polling.</p>
+    <h1>System Manager Oversight</h1>
+    
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('requests')">Clearance Requests</button>
+        <button class="tab-btn" onclick="switchTab('audit')">Audit Logs</button>
+    </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for r in pending %}
-            <tr data-id="{{ r['id'] }}">
-                <td>{{ r['id'] }}</td>
-                <td>{{ r['username'] }}</td>
-                <td><span class="pill">{{ r['status'] }}</span></td>
-                <td>
-                    <button class="btn-approve" onclick="setStatus({{ r['id'] }}, 'approve')">Approve</button>
-                    <button class="btn-deny" onclick="setStatus({{ r['id'] }}, 'deny')">Deny</button>
-                </td>
-            </tr>
-        {% else %}
-            <tr><td colspan="4">No pending requests.</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div id="requests" class="tab-content active">
+        <p style="color: #9ca3af;">Pending high-clearance access requests. Approvals are streamed back to users via polling.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 10%">ID</th>
+                    <th style="width: 30%">User</th>
+                    <th style="width: 30%">Status</th>
+                    <th style="width: 30%">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in pending %}
+                <tr data-id="{{ r['id'] }}">
+                    <td>{{ r['id'] }}</td>
+                    <td>{{ r['username'] }}</td>
+                    <td><span class="pill event">{{ r['status'] }}</span></td>
+                    <td>
+                        <button class="action-btn btn-approve" onclick="setStatus({{ r['id'] }}, 'approve')">Approve</button>
+                        <button class="action-btn btn-deny" onclick="setStatus({{ r['id'] }}, 'deny')">Deny</button>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4">No pending requests.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="audit" class="tab-content">
+        <p style="color: #9ca3af;">System activity, authentication events, and network perimeter logs.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%">Date & Time</th>
+                    <th style="width: 15%">User</th>
+                    <th style="width: 20%">Event Type</th>
+                    <th style="width: 15%">Network Status</th>
+                    <th style="width: 35%">Engine Diagnostics</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for log in logs %}
+                <tr>
+                    <td><script>document.write(new Date({{ log['created_at'] }} * 1000).toLocaleString());</script></td>
+                    
+                    <td>{{ log['username'] or 'System/Unknown' }}</td>
+                    
+                    <td><span class="pill event">{{ log['event_type'] }}</span></td>
+                    
+                    <td>
+                        {% if log['is_remote'] %}
+                            <span class="pill remote">Remote / Step-Up</span>
+                        {% else %}
+                            <span class="pill internal">Internal (Trusted)</span>
+                        {% endif %}
+                    </td>
+                    
+                    <td><pre><script>
+                        try {
+                            let parsed = JSON.parse('{{ log["detail"] | safe }}');
+                            document.write(JSON.stringify(parsed, null, 2));
+                        } catch(e) {
+                            document.write('{{ log["detail"] }}');
+                        }
+                    </script></pre></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5">No logs found.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
     <script>
+        // Handle Tab Switching
+        function switchTab(tabId) {
+            // Hide all content and remove active state from buttons
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            // Show the clicked tab
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // Handle Approval/Deny Actions
         async function setStatus(id, action) {
             const endpoint = action === 'approve'
                 ? `/api/admin/approve/${id}`
@@ -97,4 +199,3 @@
     </script>
 </body>
 </html>
-
