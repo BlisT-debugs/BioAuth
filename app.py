@@ -17,7 +17,7 @@ INTERNAL_NETWORKS = [
     ipaddress.ip_network("157.52.0.0/16"),
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
-Z_THRESHOLD = 1.4
+Z_THRESHOLD = 1.2
 FACE_DISTANCE_THRESHOLD = 0.6
 
 
