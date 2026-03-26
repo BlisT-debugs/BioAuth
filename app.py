@@ -17,7 +17,7 @@ INTERNAL_NETWORKS = [
     ipaddress.ip_network("157.52.0.0/16"),
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
-Z_THRESHOLD = 1.2
+Z_THRESHOLD = 1.0
 FACE_DISTANCE_THRESHOLD = 0.6
 
 
@@ -268,6 +268,17 @@ def admin_dashboard():
     conn.close()
     return render_template("admin.html", pending=pending, logs=logs)
 
+@app.get("/api/admin/logs")
+def api_admin_logs():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100")
+    logs = cur.fetchall()
+    conn.close()
+    
+    # Convert sqlite3 rows to standard dictionaries so they can be sent as JSON
+    logs_list = [dict(row) for row in logs]
+    return jsonify({"logs": logs_list})
 
 @app.post("/api/perimeter")
 def api_perimeter():
