@@ -349,7 +349,7 @@ def api_keystrokes():
             step_up_reason = f"Typo detected: Input length ({len(x)}) differs from Profile ({len(profile.mu)})"
         else:
             z = gaussian_z_score(x, profile)
-            effective_threshold = 2.5 if not is_remote else Z_THRESHOLD
+            effective_threshold = 1.2 if not is_remote else Z_THRESHOLD
             match = z < effective_threshold
             
             if is_remote:
