@@ -296,62 +296,65 @@ def api_perimeter():
 
 @app.post("/api/keystrokes")
 def api_keystrokes():
-    """
-    Step 2: Behavioral engine (keystroke dynamics).
-    Expects dwell/flight timings as a flat array.
-    """
     data = request.get_json(force=True)
-    username = data.get("username")
-    password = data.get("password")
-    timings = data.get("timings") or []
+    username, password, timings = data.get("username"), data.get("password"), data.get("timings") or []
 
     user = get_user_by_username(username)
-    if user is None:
-        return jsonify({"error": "unknown user"}), 400
-
-    if not password or not check_password_hash(user["password_hash"], password):
-        return jsonify({"error": "invalid_credentials"}), 401
+    if user is None: return jsonify({"error": "unknown user"}), 400
+    if not password or not check_password_hash(user["password_hash"], password): return jsonify({"error": "invalid_credentials"}), 401
 
     x = np.array(timings, dtype=float)
     profile = get_keystroke_profile(user["id"])
 
-    if profile is None:
-        # First successful login will establish baseline; for now, require face step-up
-        z = None
-        match = False
-    else:
-        z = gaussian_z_score(x, profile)
-        match = z < Z_THRESHOLD
-
-    forwarded = request.headers.get("X-Forwarded-For")
-    current_ip = forwarded.split(",")[0].strip() if forwarded else (request.remote_addr or "0.0.0.0")
+    # 1. Get IP and network status
+    current_ip = get_client_ip()
     is_remote = not ip_is_internal(current_ip)
     
-    log_event(
-        user_id=user["id"],
-        username=username,
-        event_type="keystroke_check",
-        detail={"z_score": z, "timing_len": len(timings)},
-        is_remote=is_remote,
-    )
+    z = None
+    match = False
+    step_up_reason = None
 
-    if is_remote:
-        return jsonify({"result": "step_up", "z_score": z})
-
-    if match:
-        # Adaptive learning: update mean on successful login ONLY if lengths match
-        if len(x) == len(profile.mu):
-            new_profile = update_gaussian_profile(profile, x)
-            save_keystroke_profile(user["id"], new_profile)
+    # 2. Determine exactly WHY a step-up might be required
+    if profile is None:
+        step_up_reason = "Initial login (No baseline profile exists)"
+    else:
+        if len(x) != len(profile.mu):
+            step_up_reason = f"Typo detected: Input length ({len(x)}) differs from Profile ({len(profile.mu)})"
         else:
-            print(f"DEBUG: Skipping adaptive update. Input length ({len(x)}) != profile length ({len(profile.mu)})")
+            z = gaussian_z_score(x, profile)
+            match = z < Z_THRESHOLD
+            
+            # Even if the Z-score matches perfectly, an external IP forces a step-up
+            if is_remote:
+                step_up_reason = f"Mandatory Step-Up: Remote IP ({current_ip}) detected"
+            elif not match:
+                step_up_reason = f"Rhythm anomaly: Z-Score ({z:.2f}) exceeded threshold ({Z_THRESHOLD})"
+
+    # 3. Add the explicit reason to our audit logs
+    log_detail = {
+        "z_score": round(z, 2) if z is not None else None, 
+        "timing_len": len(timings),
+        "ip": current_ip
+    }
+    
+    if step_up_reason:
+        log_detail["step_up_reason"] = step_up_reason
+
+    log_event(user["id"], username, "keystroke_check", log_detail, is_remote)
+
+    # 4. Enforce the authentication decision
+    if is_remote:
+        return jsonify({"result": "step_up", "z_score": z, "reason": step_up_reason})
+
+    # Only grant immediate access if it's a match AND there's no step-up reason
+    if match and step_up_reason is None:
+        new_profile = update_gaussian_profile(profile, x)
+        save_keystroke_profile(user["id"], new_profile)
         session["user_id"] = user["id"]
         session["username"] = username
         return jsonify({"result": "granted", "z_score": z})
 
-    # Mismatch -> trigger step-up (face scan)
-    return jsonify({"result": "step_up", "z_score": z})
-
+    return jsonify({"result": "step_up", "z_score": z, "reason": step_up_reason})
 
 @app.post("/api/face-verify")
 def api_face_verify():
