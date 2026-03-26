@@ -162,7 +162,7 @@ def gaussian_z_score(x: np.ndarray, profile: GaussianProfile) -> float:
     return float(z.mean())
 
 
-def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.19) -> GaussianProfile:
+def update_gaussian_profile(profile: GaussianProfile, x: np.ndarray, alpha: float = 0.05) -> GaussianProfile:
     mu_new = profile.mu * (1.0 - alpha) + x * alpha
     # keep sigma as-is for simplicity; could also adapt
     return GaussianProfile(mu=mu_new, sigma=profile.sigma)
