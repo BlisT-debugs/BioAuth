@@ -68,8 +68,8 @@ regForm.addEventListener('submit', async (e) => {
     regStatus.textContent = 'Starting camera for liveness enrollment…';
 
     try {
-        // Uses collectBlinkAndDescriptor from face_liveness.js
-        const { descriptor, liveness_passed } = await collectBlinkAndDescriptor(username);
+        // Uses collectLivenessAndDescriptor from face_liveness.js
+        const { descriptor, liveness_passed } = await collectLivenessAndDescriptor(username);
         regStatus.textContent = 'Saving enrollment securely…';
         const res = await fetch('/api/register/enroll', {
             method: 'POST',
