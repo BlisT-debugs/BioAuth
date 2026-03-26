@@ -132,7 +132,12 @@
     </div>
 
     <div id="audit" class="tab-content">
-        <p style="color: #9ca3af;">System activity, authentication events, and network perimeter logs.</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <p style="color: #9ca3af; margin: 0;">System activity, authentication events, and network perimeter logs.</p>
+            <button onclick="fetchLogs()" id="refresh-btn" style="background: #1f2937; color: #e5e7eb; border: 1px solid #374151; padding: 0.4rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.85rem;">
+                🔄 Refresh Logs
+            </button>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -143,7 +148,7 @@
                     <th style="width: 35%">Engine Diagnostics</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="logs-body">
             {% for log in logs %}
                 <tr>
                     <td><script>document.write(new Date({{ log['created_at'] }} * 1000).toLocaleString());</script></td>
@@ -195,6 +200,59 @@
                 : `/api/admin/deny/${id}`;
             await fetch(endpoint, { method: 'POST' });
             location.reload();
+        }
+
+        // Fetch latest logs (for the Audit tab)
+        async function fetchLogs() {
+            const btn = document.getElementById('refresh-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Refreshing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/admin/logs');
+                const data = await res.json();
+                
+                const tbody = document.getElementById('logs-body');
+                tbody.innerHTML = ''; // Clear current table
+
+                if (data.logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">No logs found.</td></tr>';
+                } else {
+                    data.logs.forEach(log => {
+                        const dateStr = new Date(log.created_at * 1000).toLocaleString();
+                        const userStr = log.username || 'System/Unknown';
+                        
+                        const badgeHtml = log.is_remote 
+                            ? '<span class="pill remote">Remote / Step-Up</span>'
+                            : '<span class="pill internal">Internal (Trusted)</span>';
+                        
+                        let detailHtml = '';
+                        try {
+                            const parsed = JSON.parse(log.detail);
+                            detailHtml = JSON.stringify(parsed, null, 2);
+                        } catch(e) {
+                            detailHtml = log.detail;
+                        }
+
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${dateStr}</td>
+                            <td>${userStr}</td>
+                            <td><span class="pill event">${log.event_type}</span></td>
+                            <td>${badgeHtml}</td>
+                            <td><pre>${detailHtml}</pre></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to fetch logs", err);
+                alert("Failed to fetch latest logs.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         }
     </script>
 </body>

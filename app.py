@@ -268,8 +268,10 @@ def admin_dashboard():
     conn.close()
     return render_template("admin.html", pending=pending, logs=logs)
 
+
 @app.get("/api/admin/logs")
 def api_admin_logs():
+    """Fetches the latest 100 logs for the live refresh button."""
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100")
@@ -347,7 +349,7 @@ def api_keystrokes():
             step_up_reason = f"Typo detected: Input length ({len(x)}) differs from Profile ({len(profile.mu)})"
         else:
             z = gaussian_z_score(x, profile)
-            effective_threshold = 4.0 if not is_remote else Z_THRESHOLD
+            effective_threshold = 2.5 if not is_remote else Z_THRESHOLD
             match = z < effective_threshold
             
             if is_remote:
