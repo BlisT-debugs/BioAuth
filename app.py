@@ -41,7 +41,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL
+            password_hash TEXT NOT NULL,
+            failed_attempts INTEGER DEFAULT 0,
+            is_locked INTEGER DEFAULT 0
         );
         """
     )
@@ -103,6 +105,13 @@ def init_db():
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_keystroke_user ON keystroke_profiles(user_id);"
     )
 
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN failed_attempts INTEGER DEFAULT 0;")
+        cur.execute("ALTER TABLE users ADD COLUMN is_locked INTEGER DEFAULT 0;")
+    except sqlite3.OperationalError:
+        # columns already exist, ignore
+        pass
+
     conn.commit()
     conn.close()
     
@@ -133,9 +142,9 @@ def classify_connection(latencies_ms: List[float]) -> str:
     mean = float(arr.mean())
     std = float(arr.std())
 
-    if mean > 180 or std > 60:
+    if mean > 400 or std > 150:
         return "vpn"
-    if mean < 80 and std < 30:
+    if mean < 150 and std < 80:
         return "trusted"
     return "unknown"
 
@@ -253,20 +262,30 @@ def high_clearance():
 def admin_dashboard():
     conn = get_db()
     cur = conn.cursor()
-    
-    # 1. Fetch pending high clearance requests
-    cur.execute(
-        "SELECT * FROM high_clearance_requests WHERE status = 'pending' ORDER BY created_at DESC"
-    )
+    cur.execute("SELECT * FROM high_clearance_requests WHERE status = 'pending' ORDER BY created_at DESC")
     pending = cur.fetchall()
     
-    # 2. Fetch the latest 100 audit logs (Login attempts, step-ups, perimeter checks)
-    cur.execute(
-        "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100"
-    )
+    cur.execute("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100")
     logs = cur.fetchall()
+    
+    # NEW: Fetch all locked users
+    cur.execute("SELECT id, username, failed_attempts FROM users WHERE is_locked = 1")
+    locked_users = cur.fetchall()
     conn.close()
-    return render_template("admin.html", pending=pending, logs=logs)
+    
+    return render_template("admin.html", pending=pending, logs=logs, locked_users=locked_users)
+
+
+@app.post("/api/admin/unlock/<int:user_id>")
+def api_admin_unlock(user_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET is_locked = 0, failed_attempts = 0 WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    
+    log_event(user_id, "System Admin", "account_unlocked", {"action": "Admin cleared lockout"}, False)
+    return jsonify({"status": "unlocked"})
 
 
 @app.get("/api/admin/logs")
@@ -324,16 +343,45 @@ def api_keystrokes():
     is_remote = not ip_is_internal(current_ip)
 
     user = get_user_by_username(username)
-    
-    # 1. NEW: Explicitly log Unknown Users
+
+    #  Explicitly log Unknown User attempts with IP and Perimeter context
     if user is None: 
         log_event(None, username, "login_failed", {"reason": "Unknown User", "ip": current_ip}, is_remote)
         return jsonify({"error": "unknown user"}), 400
-        
-    # 2. NEW: Explicitly log Wrong Passwords
+
+    #  Check if the account is already locked
+    if user["is_locked"]:
+        log_event(user["id"], username, "login_blocked", {"reason": "Account Locked", "ip": current_ip}, is_remote)
+        return jsonify({"error": "account_locked", "message": "Account locked due to multiple failed attempts. Contact admin."}), 403
+
+    #  Track failed password attempts
     if not password or not check_password_hash(user["password_hash"], password): 
-        log_event(user["id"], username, "login_failed", {"reason": "Invalid Password", "ip": current_ip}, is_remote)
-        return jsonify({"error": "invalid_credentials"}), 401
+        conn = get_db()
+        cur = conn.cursor()
+        new_attempts = user["failed_attempts"] + 1
+        
+        # If they hit 3 strikes, lock the account
+        if new_attempts >= 3:
+            cur.execute("UPDATE users SET failed_attempts = ?, is_locked = 1 WHERE id = ?", (new_attempts, user["id"]))
+            conn.commit()
+            conn.close()
+            log_event(user["id"], username, "account_locked", {"reason": "3 Failed Password Attempts", "ip": current_ip}, is_remote)
+            return jsonify({"error": "account_locked", "message": "Account locked due to multiple failed attempts. Contact admin."}), 403
+        
+        # Otherwise, just record the strike
+        cur.execute("UPDATE users SET failed_attempts = ? WHERE id = ?", (new_attempts, user["id"]))
+        conn.commit()
+        conn.close()
+        log_event(user["id"], username, "login_failed", {"reason": "Invalid Password", "attempts": new_attempts, "ip": current_ip}, is_remote)
+        return jsonify({"error": "invalid_credentials", "attempts_left": 3 - new_attempts}), 401
+
+    #  Reset failed attempts upon a successful password match
+    if user["failed_attempts"] > 0:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET failed_attempts = 0 WHERE id = ?", (user["id"],))
+        conn.commit()
+        conn.close()
 
     x = np.array(timings, dtype=float)
     profile = get_keystroke_profile(user["id"])

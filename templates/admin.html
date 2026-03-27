@@ -99,6 +99,7 @@
     
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('requests')">Clearance Requests</button>
+        <button class="tab-btn" onclick="switchTab('locked')">Locked Accounts</button>
         <button class="tab-btn" onclick="switchTab('audit')">Audit Logs</button>
     </div>
 
@@ -130,7 +131,33 @@
             </tbody>
         </table>
     </div>
-
+    <div id="locked" class="tab-content">
+        <p style="color: #9ca3af;">User accounts disabled due to exceeding maximum failed authentication attempts.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 20%">User ID</th>
+                    <th style="width: 40%">Username</th>
+                    <th style="width: 20%">Failed Attempts</th>
+                    <th style="width: 20%">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in locked_users %}
+                <tr>
+                    <td>{{ u['id'] }}</td>
+                    <td>{{ u['username'] }}</td>
+                    <td><span class="pill remote">{{ u['failed_attempts'] }} Strikes</span></td>
+                    <td>
+                        <button class="action-btn btn-approve" onclick="unlockUser({{ u['id'] }})">🔓 Unlock Account</button>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4">No locked accounts.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
     <div id="audit" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <p style="color: #9ca3af; margin: 0;">System activity, authentication events, and network perimeter logs.</p>
@@ -252,6 +279,13 @@
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+            }
+        }
+
+        async function unlockUser(userId) {
+            if(confirm("Are you sure you want to restore access to this account?")) {
+                await fetch(`/api/admin/unlock/${userId}`, { method: 'POST' });
+                location.reload();
             }
         }
     </script>
