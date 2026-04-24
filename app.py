@@ -14,10 +14,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 DB_PATH = Path(os.environ.get("BIOAUTH_DB_PATH", "auth.db"))
 INTERNAL_NETWORKS = [
     ipaddress.ip_network("103.4.0.0/16"),  # demo: treat SRM Wifi as internal
-    ipaddress.ip_network("157.52.0.0/16"),
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
-Z_THRESHOLD = 1.3
+Z_THRESHOLD = 0.8
 FACE_DISTANCE_THRESHOLD = 0.6
 
 
@@ -116,7 +115,6 @@ def init_db():
     conn.close()
     
 def get_client_ip() -> str:
-    """Extract client IP safely from Railway proxies."""
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
         return forwarded.split(",")[0].strip()
@@ -397,7 +395,7 @@ def api_keystrokes():
             step_up_reason = f"Typo detected: Input length ({len(x)}) differs from Profile ({len(profile.mu)})"
         else:
             z = gaussian_z_score(x, profile)
-            effective_threshold = 1.3 if not is_remote else Z_THRESHOLD
+            effective_threshold = 1.0 if not is_remote else Z_THRESHOLD
             match = z < effective_threshold
             
             if is_remote:
