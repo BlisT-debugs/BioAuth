@@ -17,7 +17,7 @@ INTERNAL_NETWORKS = [
     ipaddress.ip_network("127.0.0.0/8"),    # treat localhost as internal for testing
 ]
 Z_THRESHOLD = 0.8
-FACE_DISTANCE_THRESHOLD = 0.6
+FACE_DISTANCE_THRESHOLD = 0.4
 
 
 app = Flask(__name__)
@@ -395,7 +395,7 @@ def api_keystrokes():
             step_up_reason = f"Typo detected: Input length ({len(x)}) differs from Profile ({len(profile.mu)})"
         else:
             z = gaussian_z_score(x, profile)
-            effective_threshold = 1.0 if not is_remote else Z_THRESHOLD
+            effective_threshold = 0.8 if not is_remote else Z_THRESHOLD
             match = z < effective_threshold
             
             if is_remote:
